@@ -1,0 +1,14 @@
+Main Task:
+Answer the following multiple choice question.
+
+Question: {question}
+
+Choices:
+{choices}
+
+Think through the question briefly and concisely to identify the correct answer. 
+
+Provide your final answer as: Answer: X (where X is the letter of your chosen answer).
+
+Example:
+Reasoning... Answer: X

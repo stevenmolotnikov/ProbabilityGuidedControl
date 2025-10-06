@@ -348,59 +348,40 @@
         }
 
         .options-section {
-            padding: 1.5rem;
-            background: var(--bg-primary);
+            padding: 1rem 1.25rem;
+            background: var(--bg-tertiary);
             border-top: 1px solid var(--border);
-            border-bottom: 1px solid var(--border);
         }
 
-        .options-title {
-            font-size: 0.8rem;
-            font-weight: 700;
-            text-transform: uppercase;
+        .options-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            font-size: 0.875rem;
             color: var(--text-primary);
-            margin-bottom: 1rem;
-            letter-spacing: 0.05em;
         }
 
         .option {
-            padding: 1rem;
-            margin-bottom: 0.5rem;
-            border-radius: 0.5rem;
-            font-size: 0.9rem;
             display: flex;
             align-items: start;
-            gap: 0.75rem;
-            background: var(--bg-secondary);
-            border: 2px solid var(--border);
-            transition: all 0.2s;
-        }
-
-        .option:hover {
-            border-color: var(--primary);
-            transform: translateX(2px);
-        }
-
-        .option.correct {
-            background: #d1fae5;
-            font-weight: 600;
-            border: 3px solid #10b981;
-        }
-
-        .option.correct:hover {
-            border-color: #059669;
+            gap: 0.5rem;
+            line-height: 1.5;
         }
 
         .option-letter {
-            font-weight: 700;
+            font-weight: 600;
             flex-shrink: 0;
-            color: var(--primary);
-            font-size: 1rem;
-            min-width: 20px;
+            color: var(--text-secondary);
         }
 
         .option.correct .option-letter {
-            color: #065f46;
+            color: var(--success);
+            font-weight: 700;
+        }
+
+        .option.correct {
+            color: var(--success);
+            font-weight: 500;
         }
 
         .responses-section {
@@ -1079,17 +1060,18 @@
 
             const optionsHTML = question.options && question.options.length > 0 ? `
                 <div class="options-section">
-                    <div class="options-title">📝 Answer Choices (Correct: ${question.correctAnswer})</div>
-                    ${question.options.map((opt, idx) => {
-                        const letter = String.fromCharCode(65 + idx);
-                        const isCorrect = letter === question.correctAnswer;
-                        return `
-                            <div class="option ${isCorrect ? 'correct' : ''}">
-                                <span class="option-letter">${letter}.</span>
-                                <span>${opt}</span>
-                            </div>
-                        `;
-                    }).join('')}
+                    <div class="options-list">
+                        ${question.options.map((opt, idx) => {
+                            const letter = String.fromCharCode(65 + idx);
+                            const isCorrect = letter === question.correctAnswer;
+                            return `
+                                <div class="option ${isCorrect ? 'correct' : ''}">
+                                    <span class="option-letter">${letter})</span>
+                                    <span>${opt}</span>
+                                </div>
+                            `;
+                        }).join('')}
+                    </div>
                 </div>
             ` : '';
 

@@ -1,0 +1,1109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MMLU-Pro Results Viewer</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --primary: #2563eb;
+            --primary-dark: #1d4ed8;
+            --success: #10b981;
+            --danger: #ef4444;
+            --warning: #f59e0b;
+            --purple: #9b59b6;
+            --blue: #3498db;
+            --red: #e74c3c;
+            --green: #2ecc71;
+            --bg-primary: #ffffff;
+            --bg-secondary: #f8fafc;
+            --bg-tertiary: #f1f5f9;
+            --text-primary: #0f172a;
+            --text-secondary: #64748b;
+            --border: #e2e8f0;
+            --shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+            --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+            line-height: 1.6;
+        }
+
+        header {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+            color: white;
+            padding: 1.5rem 2rem;
+            box-shadow: var(--shadow-lg);
+        }
+
+        h1 {
+            font-size: 1.75rem;
+            font-weight: 700;
+        }
+
+        .subtitle {
+            opacity: 0.95;
+            font-size: 0.875rem;
+            margin-top: 0.25rem;
+        }
+
+        .layout {
+            display: grid;
+            grid-template-columns: 320px 1fr;
+            min-height: calc(100vh - 100px);
+            max-width: 1800px;
+            margin: 0 auto;
+        }
+
+        .sidebar {
+            background: var(--bg-primary);
+            border-right: 1px solid var(--border);
+            height: calc(100vh - 100px);
+            position: sticky;
+            top: 0;
+            overflow-y: auto;
+        }
+
+        .sidebar-section {
+            padding: 1.5rem;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .sidebar-section h2 {
+            font-size: 0.75rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-secondary);
+            margin-bottom: 1rem;
+        }
+
+        .checkbox-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .checkbox-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem;
+            border-radius: 0.5rem;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .checkbox-item:hover {
+            background: var(--bg-secondary);
+        }
+
+        .checkbox-item input[type="checkbox"] {
+            cursor: pointer;
+            width: 16px;
+            height: 16px;
+        }
+
+        .checkbox-item label {
+            font-size: 0.875rem;
+            cursor: pointer;
+            flex: 1;
+            font-weight: normal;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 0.5rem;
+            margin-top: 1rem;
+        }
+
+        button {
+            padding: 0.5rem 1rem;
+            border: none;
+            border-radius: 0.5rem;
+            font-size: 0.875rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            flex: 1;
+        }
+
+        button.primary {
+            background: var(--primary);
+            color: white;
+        }
+
+        button.primary:hover {
+            background: var(--primary-dark);
+            transform: translateY(-1px);
+        }
+
+        button.secondary {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+        }
+
+        button.secondary:hover {
+            background: var(--border);
+        }
+
+        .filter-section {
+            margin-top: 1rem;
+        }
+
+        .filter-group {
+            margin-bottom: 1rem;
+        }
+
+        .filter-group label {
+            display: block;
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 0.25rem;
+        }
+
+        .filter-group select {
+            width: 100%;
+            padding: 0.5rem;
+            border: 1px solid var(--border);
+            border-radius: 0.5rem;
+            font-size: 0.875rem;
+            background: var(--bg-primary);
+            cursor: pointer;
+        }
+
+        input[type="text"] {
+            width: 100%;
+            padding: 0.5rem;
+            border: 1px solid var(--border);
+            border-radius: 0.5rem;
+            font-size: 0.875rem;
+        }
+
+        input[type="text"]:focus, select:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+        }
+
+        .main-content {
+            padding: 2rem;
+            overflow-y: auto;
+        }
+
+        .chart-container {
+            background: var(--bg-primary);
+            padding: 1.5rem;
+            border-radius: 0.75rem;
+            box-shadow: var(--shadow);
+            margin-bottom: 2rem;
+        }
+
+        #accuracyChart {
+            max-height: 450px;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .stat-card {
+            background: var(--bg-primary);
+            padding: 1.25rem;
+            border-radius: 0.75rem;
+            box-shadow: var(--shadow);
+            border-left: 4px solid var(--primary);
+        }
+
+        .stat-card.success { border-left-color: var(--success); }
+        .stat-card.danger { border-left-color: var(--danger); }
+        .stat-card.warning { border-left-color: var(--warning); }
+
+        .stat-label {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-secondary);
+            margin-bottom: 0.25rem;
+            font-weight: 600;
+        }
+
+        .stat-value {
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+
+        .stat-detail {
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+            margin-top: 0.25rem;
+        }
+
+        .question-card {
+            background: var(--bg-primary);
+            border-radius: 0.75rem;
+            box-shadow: var(--shadow);
+            margin-bottom: 1rem;
+            overflow: hidden;
+            transition: all 0.2s;
+        }
+
+        .question-card:hover {
+            box-shadow: var(--shadow-lg);
+        }
+
+        .question-header {
+            padding: 1.25rem;
+            background: var(--bg-tertiary);
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: start;
+            gap: 1rem;
+            user-select: none;
+        }
+
+        .question-header:hover {
+            background: #e8edf3;
+        }
+
+        .question-header-content {
+            flex: 1;
+        }
+
+        .question-text {
+            font-weight: 600;
+            line-height: 1.5;
+            margin-bottom: 0.75rem;
+        }
+
+        .model-badges {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            margin-top: 0.5rem;
+        }
+
+        .model-badge {
+            font-size: 0.7rem;
+            padding: 0.25rem 0.6rem;
+            border-radius: 9999px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.025em;
+        }
+
+        .model-badge.correct {
+            background: #d1fae5;
+            color: #065f46;
+        }
+
+        .model-badge.incorrect {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        .model-badge.failed {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        .collapse-icon {
+            font-size: 1.25rem;
+            color: var(--text-secondary);
+            transition: transform 0.2s;
+            flex-shrink: 0;
+        }
+
+        .question-card.collapsed .collapse-icon {
+            transform: rotate(-90deg);
+        }
+
+        .question-body {
+            max-height: 2000px;
+            overflow: hidden;
+            transition: max-height 0.3s ease-out;
+        }
+
+        .question-card.collapsed .question-body {
+            max-height: 0;
+        }
+
+        .options-section {
+            padding: 1.25rem;
+            background: var(--bg-secondary);
+            border-top: 1px solid var(--border);
+        }
+
+        .options-title {
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            color: var(--text-secondary);
+            margin-bottom: 0.75rem;
+        }
+
+        .option {
+            padding: 0.75rem;
+            margin-bottom: 0.5rem;
+            border-radius: 0.5rem;
+            font-size: 0.875rem;
+            display: flex;
+            align-items: start;
+            gap: 0.75rem;
+            background: var(--bg-primary);
+        }
+
+        .option.correct {
+            background: #d1fae5;
+            font-weight: 500;
+            border: 2px solid #10b981;
+        }
+
+        .option-letter {
+            font-weight: 700;
+            flex-shrink: 0;
+            color: var(--primary);
+            font-size: 0.95rem;
+        }
+
+        .responses-section {
+            padding: 1.25rem;
+            border-top: 1px solid var(--border);
+        }
+
+        .responses-title {
+            font-size: 0.875rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 1rem;
+        }
+
+        .response-card {
+            padding: 1rem;
+            border: 1px solid var(--border);
+            border-radius: 0.5rem;
+            background: var(--bg-secondary);
+            margin-bottom: 1rem;
+        }
+
+        .response-card:last-child {
+            margin-bottom: 0;
+        }
+
+        .response-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.75rem;
+        }
+
+        .model-name {
+            font-weight: 600;
+            font-size: 0.875rem;
+        }
+
+        .answer-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.25rem;
+            font-size: 0.875rem;
+            font-weight: 600;
+            padding: 0.35rem 0.75rem;
+            border-radius: 0.375rem;
+        }
+
+        .answer-indicator.correct {
+            background: #d1fae5;
+            color: #065f46;
+        }
+
+        .answer-indicator.incorrect {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        .answer-indicator.failed {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        .response-text {
+            font-size: 0.875rem;
+            line-height: 1.6;
+            color: var(--text-primary);
+            white-space: pre-wrap;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 4rem 2rem;
+            color: var(--text-secondary);
+        }
+
+        .empty-state-icon {
+            font-size: 4rem;
+            margin-bottom: 1rem;
+            opacity: 0.5;
+        }
+
+        .loader {
+            text-align: center;
+            padding: 3rem;
+            color: var(--text-secondary);
+            font-size: 1.125rem;
+        }
+
+        @media (max-width: 1024px) {
+            .layout {
+                grid-template-columns: 1fr;
+            }
+
+            .sidebar {
+                position: static;
+                height: auto;
+                border-right: none;
+                border-bottom: 1px solid var(--border);
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>🎯 MMLU-Pro Results Viewer</h1>
+        <p class="subtitle">Compare and analyze model evaluation results with advanced filtering</p>
+    </header>
+
+    <div class="layout">
+        <aside class="sidebar">
+            <div class="sidebar-section">
+                <h2>📁 Select Models</h2>
+                <div id="resultsCheckboxes" class="checkbox-list">
+                    <p style="color: var(--text-secondary); font-size: 0.875rem;">Loading...</p>
+                </div>
+                <div class="button-group">
+                    <button class="secondary" onclick="selectAllResults()">All</button>
+                    <button class="secondary" onclick="clearSelection()">Clear</button>
+                </div>
+                <button class="primary" onclick="loadSelectedResults()" style="width: 100%; margin-top: 0.5rem;">
+                    Load Results
+                </button>
+            </div>
+
+            <div class="sidebar-section" id="filterSection" style="display: none;">
+                <h2>⚙️ Filter by Model Result</h2>
+                <div id="modelFilters" class="filter-section"></div>
+            </div>
+
+            <div class="sidebar-section">
+                <h2>🔍 Search</h2>
+                <input type="text" id="searchInput" placeholder="Search questions...">
+            </div>
+        </aside>
+
+        <main class="main-content">
+            <div id="chartContainer" style="display: none;"></div>
+            <div id="statsContainer"></div>
+            <div id="resultsContainer">
+                <div class="empty-state">
+                    <div class="empty-state-icon">📊</div>
+                    <h2>No Results Loaded</h2>
+                    <p>Select one or more result files from the sidebar to get started</p>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        let allResultFiles = [];
+        let loadedResults = [];
+        let modelFilters = {};
+        let searchTerm = '';
+        let accuracyChart = null;
+
+        // Initialize
+        async function init() {
+            await loadResultFiles();
+            setupEventListeners();
+        }
+
+        function setupEventListeners() {
+            document.getElementById('searchInput').addEventListener('input', (e) => {
+                searchTerm = e.target.value.toLowerCase();
+                renderResults();
+            });
+        }
+
+        async function loadResultFiles() {
+            try {
+                const response = await fetch('results/');
+                const text = await response.text();
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(text, 'text/html');
+                const links = doc.querySelectorAll('a');
+                
+                allResultFiles = Array.from(links)
+                    .map(link => link.getAttribute('href'))
+                    .filter(href => href && (href.includes('_results') && href.endsWith('.json')));
+
+                if (allResultFiles.length === 0) {
+                    allResultFiles = [
+                        'unsloth_gemma-3-12b-it_untrusted_honest_results_temp_0.json',
+                        'unsloth_gemma-3-12b-it_untrusted_honest_results_temp_1.json',
+                        'unsloth_gemma-3-12b-it_untrusted_sandbagging_results_temp_0.json',
+                        'unsloth_gemma-3-12b-it_untrusted_sandbagging_results_temp_1.json',
+                        'unsloth_gemma-3-4b-it_trusted_honest_results_temp_0.json',
+                        'unsloth_gemma-3-4b-it_trusted_honest_results_temp_1.json',
+                        'unsloth_gemma-3-12b-it_controlled_by_unsloth_gemma-3-4b-it_thresh_1e01_results_temp_0.json',
+                        'unsloth_gemma-3-12b-it_controlled_by_unsloth_gemma-3-4b-it_thresh_1e01_results_temp_1.json',
+                    ];
+                }
+
+                populateCheckboxes();
+            } catch (error) {
+                console.error('Error loading result files:', error);
+                allResultFiles = [
+                    'unsloth_gemma-3-12b-it_untrusted_honest_results_temp_0.json',
+                    'unsloth_gemma-3-12b-it_untrusted_honest_results_temp_1.json',
+                    'unsloth_gemma-3-12b-it_untrusted_sandbagging_results_temp_0.json',
+                    'unsloth_gemma-3-12b-it_untrusted_sandbagging_results_temp_1.json',
+                    'unsloth_gemma-3-4b-it_trusted_honest_results_temp_0.json',
+                    'unsloth_gemma-3-4b-it_trusted_honest_results_temp_1.json',
+                    'unsloth_gemma-3-12b-it_controlled_by_unsloth_gemma-3-4b-it_thresh_1e01_results_temp_0.json',
+                    'unsloth_gemma-3-12b-it_controlled_by_unsloth_gemma-3-4b-it_thresh_1e01_results_temp_1.json',
+                ];
+                populateCheckboxes();
+            }
+        }
+
+        function populateCheckboxes() {
+            const container = document.getElementById('resultsCheckboxes');
+            container.innerHTML = '';
+            
+            allResultFiles.forEach((file, index) => {
+                const div = document.createElement('div');
+                div.className = 'checkbox-item';
+                
+                const checkbox = document.createElement('input');
+                checkbox.type = 'checkbox';
+                checkbox.id = `check-${index}`;
+                checkbox.value = file;
+                
+                const label = document.createElement('label');
+                label.htmlFor = `check-${index}`;
+                label.textContent = formatFileName(file);
+                
+                div.appendChild(checkbox);
+                div.appendChild(label);
+                container.appendChild(div);
+            });
+        }
+
+        function formatDisplayName(data) {
+            // Extract information from the JSON data itself, not filename
+            let type = '';
+            let size = '';
+            let temp = '';
+            
+            if (data.model_type === 'controlled') {
+                // Controlled generation
+                const untrustedSize = data.untrusted_model.match(/gemma-3-(\d+b-it)/)?.[1] || '';
+                const trustedSize = data.trusted_model.match(/gemma-3-(\d+b-it)/)?.[1] || '';
+                const threshold = data.trusted_threshold;
+                type = `Controlled ${untrustedSize} (by ${trustedSize}, θ=${threshold})`;
+                size = ''; // Already in type
+            } else {
+                // Standard evaluation
+                size = data.model.match(/gemma-3-(\d+b-it)/)?.[1] || '';
+                const modelType = data.model_type.charAt(0).toUpperCase() + data.model_type.slice(1);
+                const evalMode = data.eval_mode.charAt(0).toUpperCase() + data.eval_mode.slice(1);
+                type = `${modelType} ${evalMode}`;
+            }
+            
+            // Extract temperature from configuration if available
+            if (data.temperature !== undefined) {
+                temp = `T=${data.do_sample ? data.temperature : 0}`;
+            }
+            
+            // Format: Type - Size - Temp (filter out empty strings)
+            return [type, size, temp].filter(Boolean).join(' - ');
+        }
+        
+        function formatFileName(filename) {
+            // Fallback for displaying in checkbox before data is loaded
+            return filename
+                .replace('.json', '')
+                .replace(/_/g, ' ')
+                .replace('unsloth gemma-3-', '')
+                .replace('results', '')
+                .replace('thresh', 'θ')
+                .trim();
+        }
+
+        function selectAllResults() {
+            document.querySelectorAll('#resultsCheckboxes input[type="checkbox"]').forEach(cb => cb.checked = true);
+        }
+
+        function clearSelection() {
+            document.querySelectorAll('#resultsCheckboxes input[type="checkbox"]').forEach(cb => cb.checked = false);
+            loadedResults = [];
+            modelFilters = {};
+            document.getElementById('filterSection').style.display = 'none';
+            document.getElementById('chartContainer').style.display = 'none';
+            document.getElementById('statsContainer').innerHTML = '';
+            document.getElementById('resultsContainer').innerHTML = `
+                <div class="empty-state">
+                    <div class="empty-state-icon">📊</div>
+                    <h2>No Results Loaded</h2>
+                    <p>Select one or more result files from the sidebar to get started</p>
+                </div>
+            `;
+        }
+
+        async function loadSelectedResults() {
+            const selected = Array.from(document.querySelectorAll('#resultsCheckboxes input:checked')).map(cb => cb.value);
+            
+            if (selected.length === 0) {
+                alert('Please select at least one result file');
+                return;
+            }
+
+            document.getElementById('resultsContainer').innerHTML = '<div class="loader">⏳ Loading results...</div>';
+            
+            loadedResults = [];
+            
+            for (const file of selected) {
+                try {
+                    const response = await fetch(`results/${file}`);
+                    const data = await response.json();
+                    data.filename = file;
+                    data.displayName = formatDisplayName(data);  // Extract from JSON data, not filename
+                    loadedResults.push(data);
+                } catch (error) {
+                    console.error(`Error loading ${file}:`, error);
+                }
+            }
+
+            renderModelFilters();
+            renderChart();
+            renderStats();
+            renderResults();
+        }
+
+        function renderModelFilters() {
+            const container = document.getElementById('modelFilters');
+            const section = document.getElementById('filterSection');
+            modelFilters = {}; // Reset
+            
+            if (loadedResults.length === 0) {
+                section.style.display = 'none';
+                return;
+            }
+
+            section.style.display = 'block';
+            container.innerHTML = '';
+
+            loadedResults.forEach(result => {
+                const div = document.createElement('div');
+                div.className = 'filter-group';
+
+                const label = document.createElement('label');
+                label.textContent = result.displayName;
+
+                const select = document.createElement('select');
+                select.dataset.filename = result.filename;
+                select.innerHTML = `
+                    <option value="any">Any</option>
+                    <option value="correct">✓ Correct</option>
+                    <option value="incorrect">✗ Incorrect</option>
+                    <option value="failed">⚠ Failed</option>
+                `;
+                
+                select.addEventListener('change', (e) => {
+                    modelFilters[result.filename] = e.target.value;
+                    renderResults();
+                });
+
+                div.appendChild(label);
+                div.appendChild(select);
+                container.appendChild(div);
+            });
+        }
+
+        function renderChart() {
+            const container = document.getElementById('chartContainer');
+            
+            if (loadedResults.length === 0) {
+                container.style.display = 'none';
+                return;
+            }
+
+            container.style.display = 'block';
+            container.innerHTML = '<div class="chart-container"><canvas id="accuracyChart"></canvas></div>';
+
+            const ctx = document.getElementById('accuracyChart').getContext('2d');
+            
+            // Prepare data similar to plot_results.py
+            const labels = [];
+            const accuracyData = [];
+            const backgroundColors = [];
+            const failedRates = [];
+
+            loadedResults.forEach(result => {
+                const displayName = result.displayName.replace(/ /g, '\n');
+                labels.push(displayName);
+                accuracyData.push(result.accuracy * 100);
+                
+                const failedRate = (result.failed_extractions / result.total) * 100;
+                failedRates.push(failedRate);
+
+                // Color based on model type (matching plot_results.py)
+                const name = result.displayName.toLowerCase();
+                if (name.includes('controlled')) {
+                    backgroundColors.push('rgba(155, 89, 182, 0.8)'); // Purple
+                } else if (name.includes('untrusted') && name.includes('honest')) {
+                    backgroundColors.push('rgba(52, 152, 219, 0.8)'); // Blue
+                } else if (name.includes('untrusted') && name.includes('sandbagging')) {
+                    backgroundColors.push('rgba(231, 76, 60, 0.8)'); // Red
+                } else if (name.includes('trusted') && name.includes('honest')) {
+                    backgroundColors.push('rgba(46, 204, 113, 0.8)'); // Green
+                } else {
+                    backgroundColors.push('rgba(149, 165, 166, 0.8)'); // Gray
+                }
+            });
+
+            if (accuracyChart) {
+                accuracyChart.destroy();
+            }
+
+            accuracyChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Accuracy (%)',
+                        data: accuracyData,
+                        backgroundColor: backgroundColors,
+                        borderColor: 'black',
+                        borderWidth: 1.5,
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'MMLU-Pro Evaluation Results',
+                            font: { size: 15, weight: 'bold' },
+                            padding: { top: 10, bottom: 20 }
+                        },
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: (context) => {
+                                    const failed = failedRates[context.dataIndex];
+                                    return [
+                                        `Accuracy: ${context.raw.toFixed(2)}%`,
+                                        failed > 0 ? `Failed: ${failed.toFixed(2)}%` : ''
+                                    ].filter(Boolean);
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            max: 110,
+                            title: {
+                                display: true,
+                                text: 'Accuracy (%)',
+                                font: { size: 13, weight: 'bold' }
+                            },
+                            grid: {
+                                color: 'rgba(0, 0, 0, 0.1)',
+                            }
+                        },
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Model Configuration',
+                                font: { size: 13, weight: 'bold' }
+                            },
+                            ticks: { font: { size: 9 } },
+                            grid: { display: false }
+                        }
+                    },
+                    animation: {
+                        onComplete: (animation) => {
+                            const chart = animation.chart;
+                            const ctx = chart.ctx;
+                            
+                            // Draw baseline
+                            const yAxis = chart.scales.y;
+                            const yPos = yAxis.getPixelForValue(10);
+                            ctx.save();
+                            ctx.strokeStyle = 'black';
+                            ctx.lineWidth = 2.5;
+                            ctx.setLineDash([10, 5]);
+                            ctx.beginPath();
+                            ctx.moveTo(chart.chartArea.left, yPos);
+                            ctx.lineTo(chart.chartArea.right, yPos);
+                            ctx.stroke();
+                            ctx.fillStyle = 'black';
+                            ctx.font = "11px 'Helvetica Neue', Helvetica, Arial, sans-serif";
+                            ctx.textAlign = 'right';
+                            ctx.fillText('Random Guess (10%)', chart.chartArea.right, yPos - 5);
+                            ctx.restore();
+
+                            // Draw labels and failed extraction boxes
+                            ctx.textAlign = 'center';
+                            ctx.textBaseline = 'bottom';
+                            
+                            const meta = chart.getDatasetMeta(0);
+                            meta.data.forEach((bar, index) => {
+                                const data = accuracyData[index];
+                                const failedRate = failedRates[index];
+                                
+                                // Main accuracy label
+                                ctx.fillStyle = 'black';
+                                ctx.font = "bold 11px 'Helvetica Neue', Helvetica, Arial, sans-serif";
+                                ctx.fillText(`${data.toFixed(2)}%`, bar.x, bar.y - (failedRate > 0 ? 25 : 5));
+
+                                // Failed extraction label and box
+                                if (failedRate > 0) {
+                                    ctx.fillStyle = 'gray';
+                                    ctx.font = "8px 'Helvetica Neue', Helvetica, Arial, sans-serif";
+                                    ctx.fillText(`(${failedRate.toFixed(2)}% failed)`, bar.x, bar.y - 10);
+
+                                    // Dashed rectangle for failed rate
+                                    ctx.save();
+                                    ctx.beginPath();
+                                    ctx.strokeStyle = 'red';
+                                    ctx.lineWidth = 2;
+                                    ctx.setLineDash([3, 3]);
+                                    const rectHeight = (failedRate / 110) * (chart.chartArea.bottom - chart.chartArea.top);
+                                    ctx.rect(bar.x - bar.width / 2, bar.y - rectHeight, bar.width, rectHeight);
+                                    ctx.stroke();
+                                    ctx.restore();
+                                }
+                            });
+                        }
+                    }
+                }
+            });
+        }
+
+        function renderStats() {
+            const container = document.getElementById('statsContainer');
+            
+            if (loadedResults.length === 0) {
+                container.innerHTML = '';
+                return;
+            }
+
+            const stats = loadedResults.map(result => ({
+                name: result.displayName,
+                accuracy: result.accuracy,
+                correct: result.correct,
+                total: result.total,
+                failed: result.failed_extractions || 0
+            }));
+
+            container.innerHTML = `
+                <div class="stats-grid">
+                    ${stats.map(stat => `
+                        <div class="stat-card ${stat.accuracy > 0.6 ? 'success' : stat.accuracy > 0.4 ? 'warning' : 'danger'}">
+                            <div class="stat-label">${stat.name}</div>
+                            <div class="stat-value">${(stat.accuracy * 100).toFixed(1)}%</div>
+                            <div class="stat-detail">${stat.correct}/${stat.total} correct • ${stat.failed} failed</div>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+        }
+
+        function renderResults() {
+            const container = document.getElementById('resultsContainer');
+            
+            if (loadedResults.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">📊</div>
+                        <h2>No Results Loaded</h2>
+                        <p>Select one or more result files from the sidebar to get started</p>
+                    </div>
+                `;
+                return;
+            }
+
+            // Merge questions from all results
+            const questionMap = new Map();
+            
+            loadedResults.forEach(result => {
+                result.results.forEach((item, index) => {
+                    if (!questionMap.has(index)) {
+                        questionMap.set(index, {
+                            index: index,
+                            question: item.question,
+                            options: item.options,
+                            correctAnswer: item.correct,
+                            responses: []
+                        });
+                    }
+                    
+                    questionMap.get(index).responses.push({
+                        model: result.displayName,
+                        filename: result.filename,
+                        response: item.response,
+                        predicted: item.predicted,
+                        isCorrect: item.is_correct,
+                        failed: item.extraction_failed
+                    });
+                });
+            });
+
+            let questions = Array.from(questionMap.values());
+
+            // Apply model-specific filters
+            const activeFilters = Object.entries(modelFilters).filter(([_, val]) => val !== 'any');
+            if (activeFilters.length > 0) {
+                questions = questions.filter(q => {
+                    return activeFilters.every(([filename, condition]) => {
+                        const response = q.responses.find(r => r.filename === filename);
+                        if (!response) return false;
+
+                        switch (condition) {
+                            case 'correct':
+                                return response.isCorrect;
+                            case 'incorrect':
+                                return !response.isCorrect && !response.failed;
+                            case 'failed':
+                                return response.failed;
+                            default:
+                                return true;
+                        }
+                    });
+                });
+            }
+
+            // Apply search
+            if (searchTerm) {
+                questions = questions.filter(q => 
+                    q.question.toLowerCase().includes(searchTerm) ||
+                    (q.options && q.options.some(opt => opt.toLowerCase().includes(searchTerm)))
+                );
+            }
+
+            if (questions.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">🔍</div>
+                        <h2>No Results Found</h2>
+                        <p>Try adjusting your filters or search term</p>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = questions.map(q => renderQuestionCard(q)).join('');
+            
+            // Add click handlers for collapsible cards
+            document.querySelectorAll('.question-header').forEach(header => {
+                header.addEventListener('click', () => {
+                    header.parentElement.classList.toggle('collapsed');
+                });
+            });
+        }
+
+        function renderQuestionCard(question) {
+            // Create model-specific badges
+            const modelBadges = question.responses.map(r => {
+                // Show more context: type + size (e.g., "Untrusted Honest 12b-it")
+                const parts = r.model.split(' - ');
+                const shortName = parts.length >= 2 ? `${parts[0]} ${parts[1]}` : r.model;
+                
+                if (r.failed) {
+                    return `<span class="model-badge failed">${shortName}: Failed</span>`;
+                } else if (r.isCorrect) {
+                    return `<span class="model-badge correct">${shortName}: ✓</span>`;
+                } else {
+                    return `<span class="model-badge incorrect">${shortName}: ✗</span>`;
+                }
+            }).join('');
+
+            const optionsHTML = question.options ? `
+                <div class="options-section">
+                    <div class="options-title">Answer Choices</div>
+                    ${question.options.map((opt, idx) => {
+                        const letter = String.fromCharCode(65 + idx);
+                        const isCorrect = letter === question.correctAnswer;
+                        return `
+                            <div class="option ${isCorrect ? 'correct' : ''}">
+                                <span class="option-letter">${letter}.</span>
+                                <span>${opt}</span>
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+            ` : '';
+
+            const responsesHTML = `
+                <div class="responses-section">
+                    <div class="responses-title">Model Responses</div>
+                    ${question.responses.map(r => `
+                        <div class="response-card">
+                            <div class="response-header">
+                                <div class="model-name">${r.model}</div>
+                                <div>
+                                    ${r.failed ? 
+                                        '<span class="answer-indicator failed">⚠ Extraction Failed</span>' :
+                                        `<span class="answer-indicator ${r.isCorrect ? 'correct' : 'incorrect'}">
+                                            ${r.isCorrect ? '✓' : '✗'} ${r.predicted || 'N/A'}${!r.isCorrect ? ` (Expected: ${question.correctAnswer})` : ''}
+                                        </span>`
+                                    }
+                                </div>
+                            </div>
+                            <div class="response-text">${r.response}</div>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+
+            return `
+                <div class="question-card collapsed">
+                    <div class="question-header">
+                        <div class="question-header-content">
+                            <div class="question-text">${question.question}</div>
+                            <div class="model-badges">${modelBadges}</div>
+                        </div>
+                        <div class="collapse-icon">▼</div>
+                    </div>
+                    <div class="question-body">
+                        ${optionsHTML}
+                        ${responsesHTML}
+                    </div>
+                </div>
+            `;
+        }
+
+        // Initialize on load
+        init();
+    </script>
+</body>
+</html>

@@ -22,10 +22,10 @@ UNTRUSTED_MODEL = "unsloth/gemma-3-12b-it"  # Larger, more capable model
 TRUSTED_MODEL = "unsloth/gemma-3-4b-it"     # Smaller, trusted model
 
 # Number of samples to evaluate (None = all samples)
-MAX_SAMPLES = 64  # Set to an integer like 100 for quick testing
+MAX_SAMPLES = 256  # Set to an integer like 100 for quick testing
 
 # Batch size for inference (A40 can handle larger batches)
-BATCH_SIZE = 8
+BATCH_SIZE = 16
 
 # Probability threshold for controlled generation
 TRUSTED_THRESHOLD = 1e-1  # Only allow tokens with >TRUSTED_THRESHOLD prob under trusted model
@@ -242,6 +242,7 @@ def evaluate_model(model_name: str, dataset, prompt_template: str, max_samples: 
         prompts = []
         correct_answers = []
         questions = []
+        options_list = []
         
         for j in range(i, min(i + batch_size, len(samples))):
             item = samples[j]
@@ -254,6 +255,7 @@ def evaluate_model(model_name: str, dataset, prompt_template: str, max_samples: 
             prompts.append(prompt)
             correct_answers.append(correct_answer_letter)
             questions.append(question)
+            options_list.append(options)
         
         # Format as chat messages for instruction-tuned models
         all_messages = []
@@ -336,6 +338,7 @@ def evaluate_model(model_name: str, dataset, prompt_template: str, max_samples: 
             
             results.append({
                 'question': questions[j],
+                'options': options_list[j],
                 'response': response,
                 'predicted': predicted_answer,
                 'correct': correct_answers[j],
@@ -360,6 +363,8 @@ def evaluate_model(model_name: str, dataset, prompt_template: str, max_samples: 
         'total': total,
         'failed_extractions': failed_extractions,
         'extraction_success_rate': (total - failed_extractions) / total,
+        'temperature': TEMPERATURE,
+        'do_sample': DO_SAMPLE,
         'results': results
     }
 
@@ -402,6 +407,7 @@ def evaluate_controlled(
         trusted_prompts = []
         correct_answers = []
         questions = []
+        options_list = []
         
         for j in range(i, min(i + batch_size, len(samples))):
             item = samples[j]
@@ -418,6 +424,7 @@ def evaluate_controlled(
             trusted_prompts.append(trusted_prompt)
             correct_answers.append(correct_answer_letter)
             questions.append(question)
+            options_list.append(options)
         
         # Format as chat messages for instruction-tuned models
         untrusted_tokenized_chats = []
@@ -530,6 +537,7 @@ def evaluate_controlled(
             
             results.append({
                 'question': questions[j],
+                'options': options_list[j],
                 'response': response,
                 'predicted': predicted_answer,
                 'correct': correct_answers[j],
@@ -558,6 +566,8 @@ def evaluate_controlled(
         'failed_extractions': failed_extractions,
         'extraction_success_rate': (total - failed_extractions) / total,
         'total_tokens_generated': total_generated_tokens,
+        'temperature': temperature,
+        'do_sample': do_sample,
         'results': results
     }
 
@@ -731,17 +741,21 @@ def main():
     output_dir = Path("results")
     output_dir.mkdir(exist_ok=True)
     
+    # Determine temperature suffix for filenames
+    temp_str = f"temp_{int(TEMPERATURE) if DO_SAMPLE else 0}"
+    
     for result in all_results:
         if result.get('model_type') == 'controlled':
             # Controlled generation has different naming
             untrusted_slug = result['untrusted_model'].replace('/', '_')
             trusted_slug = result['trusted_model'].replace('/', '_')
-            output_file = output_dir / f"{untrusted_slug}_controlled_by_{trusted_slug}_results.json"
+            threshold_str = f"thresh_{result['trusted_threshold']:.0e}".replace('-', '')
+            output_file = output_dir / f"{untrusted_slug}_controlled_by_{trusted_slug}_{threshold_str}_results_{temp_str}.json"
         else:
             model_slug = result['model'].replace('/', '_')
             model_type = result['model_type']
             eval_mode = result['eval_mode']
-            output_file = output_dir / f"{model_slug}_{model_type}_{eval_mode}_results.json"
+            output_file = output_dir / f"{model_slug}_{model_type}_{eval_mode}_results_{temp_str}.json"
         
         with open(output_file, 'w') as f:
             json.dump(result, f, indent=2)
@@ -802,16 +816,17 @@ def main():
                 'extraction_success_rate': result['extraction_success_rate']
             })
     
-    summary_file = output_dir / "summary.json"
+    summary_file = output_dir / f"summary_{temp_str}.json"
     with open(summary_file, 'w') as f:
         json.dump(summary, f, indent=2)
     
     print(f"\n📊 Summary saved to: {summary_file}")
     
-    # Create visualization
+    # Create visualization with descriptive filename
     try:
         from plot_results import plot_results
-        plot_results(str(summary_file))
+        plot_file = output_dir / f"results_chart_{temp_str}.png"
+        plot_results(str(summary_file), str(plot_file))
     except Exception as e:
         print(f"⚠️  Could not create chart: {e}")
 

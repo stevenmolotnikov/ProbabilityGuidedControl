@@ -37,8 +37,14 @@ def plot_results(summary_file: str, output_file: str = None):
             untrusted_name = eval_data['untrusted_model'].split('/')[-1]
             trusted_name = eval_data['trusted_model'].split('/')[-1]
             threshold = eval_data['trusted_threshold']
-            labels.append(f'Controlled\nUTM: {untrusted_name}\nTM: {trusted_name}\nθ={threshold}, T={display_temp}')
+            labels.append(f'Controlled (Thresh)\nUTM: {untrusted_name}\nTM: {trusted_name}\nθ={threshold}, T={display_temp}')
             colors.append('#9b59b6')  # Purple
+        elif eval_data['type'] == 'controlled_rank':
+            untrusted_name = eval_data['untrusted_model'].split('/')[-1]
+            trusted_name = eval_data['trusted_model'].split('/')[-1]
+            top_k = eval_data['trusted_top_k']
+            labels.append(f'Controlled (Rank)\nUTM: {untrusted_name}\nTM: {trusted_name}\nk={top_k}, T={display_temp}')
+            colors.append('#8e44ad')  # Dark Purple
         else:
             model_name = eval_data['model'].split('/')[-1]
             model_type = eval_data['model_type']
@@ -126,7 +132,11 @@ def plot_results(summary_file: str, output_file: str = None):
     
     # Save figure
     if output_file is None:
-        output_file = Path(summary_file).parent / "results_chart.png"
+        # Extract parameters from summary for filename
+        max_samples = config.get('max_samples', 'all')
+        sample_str = f"n{max_samples}"
+        temp_str = f"t{display_temp:.1f}".replace('.', 'p')  # e.g., t1p0 for 1.0, t0p0 for 0.0
+        output_file = Path(summary_file).parent / f"results_chart_{sample_str}_{temp_str}.png"
     
     plt.savefig(output_file, dpi=300, bbox_inches='tight')
     plt.close()

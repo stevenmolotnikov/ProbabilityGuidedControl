@@ -44,6 +44,9 @@
             color: white;
             padding: 1.5rem 2rem;
             box-shadow: var(--shadow-lg);
+            position: sticky;
+            top: 0;
+            z-index: 100;
         }
 
         h1 {
@@ -60,7 +63,7 @@
         .layout {
             display: grid;
             grid-template-columns: 320px 1fr;
-            min-height: calc(100vh - 100px);
+            min-height: 100vh;
             max-width: 1800px;
             margin: 0 auto;
         }
@@ -68,7 +71,7 @@
         .sidebar {
             background: var(--bg-primary);
             border-right: 1px solid var(--border);
-            height: calc(100vh - 100px);
+            height: 100vh;
             position: sticky;
             top: 0;
             overflow-y: auto;
@@ -345,41 +348,59 @@
         }
 
         .options-section {
-            padding: 1.25rem;
-            background: var(--bg-secondary);
+            padding: 1.5rem;
+            background: var(--bg-primary);
             border-top: 1px solid var(--border);
+            border-bottom: 1px solid var(--border);
         }
 
         .options-title {
-            font-size: 0.75rem;
-            font-weight: 600;
+            font-size: 0.8rem;
+            font-weight: 700;
             text-transform: uppercase;
-            color: var(--text-secondary);
-            margin-bottom: 0.75rem;
+            color: var(--text-primary);
+            margin-bottom: 1rem;
+            letter-spacing: 0.05em;
         }
 
         .option {
-            padding: 0.75rem;
+            padding: 1rem;
             margin-bottom: 0.5rem;
             border-radius: 0.5rem;
-            font-size: 0.875rem;
+            font-size: 0.9rem;
             display: flex;
             align-items: start;
             gap: 0.75rem;
-            background: var(--bg-primary);
+            background: var(--bg-secondary);
+            border: 2px solid var(--border);
+            transition: all 0.2s;
+        }
+
+        .option:hover {
+            border-color: var(--primary);
+            transform: translateX(2px);
         }
 
         .option.correct {
             background: #d1fae5;
-            font-weight: 500;
-            border: 2px solid #10b981;
+            font-weight: 600;
+            border: 3px solid #10b981;
+        }
+
+        .option.correct:hover {
+            border-color: #059669;
         }
 
         .option-letter {
             font-weight: 700;
             flex-shrink: 0;
             color: var(--primary);
-            font-size: 0.95rem;
+            font-size: 1rem;
+            min-width: 20px;
+        }
+
+        .option.correct .option-letter {
+            color: #065f46;
         }
 
         .responses-section {
@@ -477,8 +498,13 @@
             .sidebar {
                 position: static;
                 height: auto;
+                max-height: none;
                 border-right: none;
                 border-bottom: 1px solid var(--border);
+            }
+
+            header {
+                position: relative;
             }
         }
     </style>
@@ -500,9 +526,6 @@
                     <button class="secondary" onclick="selectAllResults()">All</button>
                     <button class="secondary" onclick="clearSelection()">Clear</button>
                 </div>
-                <button class="primary" onclick="loadSelectedResults()" style="width: 100%; margin-top: 0.5rem;">
-                    Load Results
-                </button>
             </div>
 
             <div class="sidebar-section" id="filterSection" style="display: none;">
@@ -559,34 +582,22 @@
                 
                 allResultFiles = Array.from(links)
                     .map(link => link.getAttribute('href'))
-                    .filter(href => href && (href.includes('_results') && href.endsWith('.json')));
+                    .filter(href => {
+                        if (!href || !href.endsWith('.json')) return false;
+                        // Exclude summary files and any paths with subdirectories
+                        if (href.startsWith('summary_') || href.includes('/')) return false;
+                        return true;
+                    })
+                    .sort();
 
                 if (allResultFiles.length === 0) {
-                    allResultFiles = [
-                        'unsloth_gemma-3-12b-it_untrusted_honest_results_temp_0.json',
-                        'unsloth_gemma-3-12b-it_untrusted_honest_results_temp_1.json',
-                        'unsloth_gemma-3-12b-it_untrusted_sandbagging_results_temp_0.json',
-                        'unsloth_gemma-3-12b-it_untrusted_sandbagging_results_temp_1.json',
-                        'unsloth_gemma-3-4b-it_trusted_honest_results_temp_0.json',
-                        'unsloth_gemma-3-4b-it_trusted_honest_results_temp_1.json',
-                        'unsloth_gemma-3-12b-it_controlled_by_unsloth_gemma-3-4b-it_thresh_1e01_results_temp_0.json',
-                        'unsloth_gemma-3-12b-it_controlled_by_unsloth_gemma-3-4b-it_thresh_1e01_results_temp_1.json',
-                    ];
+                    console.warn('No result files found via directory listing');
                 }
 
                 populateCheckboxes();
             } catch (error) {
                 console.error('Error loading result files:', error);
-                allResultFiles = [
-                    'unsloth_gemma-3-12b-it_untrusted_honest_results_temp_0.json',
-                    'unsloth_gemma-3-12b-it_untrusted_honest_results_temp_1.json',
-                    'unsloth_gemma-3-12b-it_untrusted_sandbagging_results_temp_0.json',
-                    'unsloth_gemma-3-12b-it_untrusted_sandbagging_results_temp_1.json',
-                    'unsloth_gemma-3-4b-it_trusted_honest_results_temp_0.json',
-                    'unsloth_gemma-3-4b-it_trusted_honest_results_temp_1.json',
-                    'unsloth_gemma-3-12b-it_controlled_by_unsloth_gemma-3-4b-it_thresh_1e01_results_temp_0.json',
-                    'unsloth_gemma-3-12b-it_controlled_by_unsloth_gemma-3-4b-it_thresh_1e01_results_temp_1.json',
-                ];
+                allResultFiles = [];
                 populateCheckboxes();
             }
         }
@@ -594,6 +605,11 @@
         function populateCheckboxes() {
             const container = document.getElementById('resultsCheckboxes');
             container.innerHTML = '';
+            
+            if (allResultFiles.length === 0) {
+                container.innerHTML = '<p style="color: var(--text-secondary); font-size: 0.875rem;">No result files found in results/ directory</p>';
+                return;
+            }
             
             allResultFiles.forEach((file, index) => {
                 const div = document.createElement('div');
@@ -603,6 +619,7 @@
                 checkbox.type = 'checkbox';
                 checkbox.id = `check-${index}`;
                 checkbox.value = file;
+                checkbox.addEventListener('change', loadSelectedResults);
                 
                 const label = document.createElement('label');
                 label.htmlFor = `check-${index}`;
@@ -657,6 +674,7 @@
 
         function selectAllResults() {
             document.querySelectorAll('#resultsCheckboxes input[type="checkbox"]').forEach(cb => cb.checked = true);
+            loadSelectedResults();
         }
 
         function clearSelection() {
@@ -679,7 +697,19 @@
             const selected = Array.from(document.querySelectorAll('#resultsCheckboxes input:checked')).map(cb => cb.value);
             
             if (selected.length === 0) {
-                alert('Please select at least one result file');
+                // Clear everything if no checkboxes selected
+                loadedResults = [];
+                modelFilters = {};
+                document.getElementById('filterSection').style.display = 'none';
+                document.getElementById('chartContainer').style.display = 'none';
+                document.getElementById('statsContainer').innerHTML = '';
+                document.getElementById('resultsContainer').innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">📊</div>
+                        <h2>No Results Loaded</h2>
+                        <p>Select one or more result files from the sidebar to get started</p>
+                    </div>
+                `;
                 return;
             }
 
@@ -1047,9 +1077,9 @@
                 }
             }).join('');
 
-            const optionsHTML = question.options ? `
+            const optionsHTML = question.options && question.options.length > 0 ? `
                 <div class="options-section">
-                    <div class="options-title">Answer Choices</div>
+                    <div class="options-title">📝 Answer Choices (Correct: ${question.correctAnswer})</div>
                     ${question.options.map((opt, idx) => {
                         const letter = String.fromCharCode(65 + idx);
                         const isCorrect = letter === question.correctAnswer;

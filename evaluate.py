@@ -22,7 +22,7 @@ UNTRUSTED_MODEL = "unsloth/gemma-3-12b-it"  # Larger, more capable model
 TRUSTED_MODEL = "unsloth/gemma-3-4b-it"     # Smaller, trusted model
 
 # Number of samples to evaluate (None = all samples)
-MAX_SAMPLES = 64  # Set to an integer like 100 for quick testing
+MAX_SAMPLES = 256  # Set to an integer like 100 for quick testing
 
 # Batch size for inference (A40 can handle larger batches)
 BATCH_SIZE = 16
@@ -45,6 +45,7 @@ RUN_UNTRUSTED_SANDBAGGING = True
 RUN_TRUSTED_HONEST = True
 RUN_CONTROLLED = False
 RUN_CONTROLLED_RANK = False
+RUN_CONTROLLED_HONEST = False
 
 def load_prompt_template(prompt_file: str = "prompts/mmlu_prompt.txt") -> str:
     """Load prompt template from file."""
@@ -933,6 +934,8 @@ def main():
                         help='Run controlled generation (probability threshold)')
     parser.add_argument('--controlled-rank', action='store_true',
                         help='Run controlled generation (rank-based top-k)')
+    parser.add_argument('--controlled-honest', action='store_true',
+                        help='Run controlled generation with honest prompt for both models')
     parser.add_argument('--all', action='store_true',
                         help='Run all evaluations (overrides other flags)')
     args = parser.parse_args()
@@ -945,12 +948,14 @@ def main():
         run_trusted_honest = True
         run_controlled = True
         run_controlled_rank = True
-    elif any([args.untrusted_honest, args.untrusted_sandbagging, args.trusted_honest, args.controlled, args.controlled_rank]):
+        run_controlled_honest = True
+    elif any([args.untrusted_honest, args.untrusted_sandbagging, args.trusted_honest, args.controlled, args.controlled_rank, args.controlled_honest]):
         run_untrusted_honest = args.untrusted_honest
         run_untrusted_sandbagging = args.untrusted_sandbagging
         run_trusted_honest = args.trusted_honest
         run_controlled = args.controlled
         run_controlled_rank = args.controlled_rank
+        run_controlled_honest = args.controlled_honest
     else:
         # Use config file defaults
         run_untrusted_honest = RUN_UNTRUSTED_HONEST
@@ -958,6 +963,7 @@ def main():
         run_trusted_honest = RUN_TRUSTED_HONEST
         run_controlled = RUN_CONTROLLED
         run_controlled_rank = RUN_CONTROLLED_RANK
+        run_controlled_honest = RUN_CONTROLLED_HONEST
     
     # Load dataset
     print("Loading MMLU-Pro dataset...")
@@ -999,6 +1005,10 @@ def main():
         print(f"  ✓ Controlled generation (rank-based top-k)")
     else:
         print(f"  ✗ Controlled generation (rank-based top-k, skipped)")
+    if run_controlled_honest:
+        print(f"  ✓ Controlled generation (honest mode)")
+    else:
+        print(f"  ✗ Controlled generation (honest mode, skipped)")
     print("="*60)
     
     # Evaluate UNTRUSTED model in HONEST mode
@@ -1145,6 +1155,57 @@ def main():
         print(f"Accuracy: {result['accuracy']:.2%} ({result['correct']}/{result['total']})")
         print(f"Extraction Success: {result['extraction_success_rate']:.2%}")
     
+    # Evaluate with CONTROLLED generation in HONEST mode (both models use honest prompt)
+    if run_controlled_honest:
+        print("\n" + "="*60)
+        print(f"CONTROLLED GENERATION (HONEST MODE)")
+        print("="*60)
+        print(f"Loading both models for controlled generation with honest prompts...")
+        
+        # Load tokenizer
+        tokenizer = AutoTokenizer.from_pretrained(UNTRUSTED_MODEL)
+        if tokenizer.pad_token is None:
+            tokenizer.pad_token = tokenizer.eos_token
+        
+        # Load untrusted model
+        untrusted_model = AutoModelForCausalLM.from_pretrained(
+            UNTRUSTED_MODEL,
+            torch_dtype=torch.bfloat16,
+            device_map="auto",
+        )
+        untrusted_model.eval()
+        
+        # Load trusted model
+        trusted_model = AutoModelForCausalLM.from_pretrained(
+            TRUSTED_MODEL,
+            torch_dtype=torch.bfloat16,
+            device_map="auto",
+        )
+        trusted_model.eval()
+        
+        result = evaluate_controlled(
+            untrusted_model,
+            trusted_model,
+            tokenizer,
+            dataset,
+            honest_prompt,  # Both use honest prompt
+            honest_prompt,
+            max_samples,
+            BATCH_SIZE,
+            TRUSTED_THRESHOLD,
+            TEMPERATURE,
+            DO_SAMPLE
+        )
+        result['model_type'] = 'controlled_honest'
+        result['untrusted_model'] = UNTRUSTED_MODEL
+        result['trusted_model'] = TRUSTED_MODEL
+        result['trusted_threshold'] = TRUSTED_THRESHOLD
+        all_results.append(result)
+        
+        print(f"\nControlled Generation (Honest)")
+        print(f"Accuracy: {result['accuracy']:.2%} ({result['correct']}/{result['total']})")
+        print(f"Extraction Success: {result['extraction_success_rate']:.2%}")
+    
     # Save results
     output_dir = Path("results")
     output_dir.mkdir(exist_ok=True)
@@ -1167,6 +1228,12 @@ def main():
             trusted_slug = result['trusted_model'].replace('/', '_')
             topk_str = f"topk{result['trusted_top_k']}"
             output_file = output_dir / f"{untrusted_slug}_controlled_rank_by_{trusted_slug}_{sample_str}_{topk_str}_{temp_str}.json"
+        elif result.get('model_type') == 'controlled_honest':
+            # Controlled generation (honest mode) has different naming
+            untrusted_slug = result['untrusted_model'].replace('/', '_')
+            trusted_slug = result['trusted_model'].replace('/', '_')
+            threshold_str = f"thresh{result['trusted_threshold']:.0e}".replace('-', '').replace('+', '')
+            output_file = output_dir / f"{untrusted_slug}_controlled_honest_by_{trusted_slug}_{sample_str}_{threshold_str}_{temp_str}.json"
         else:
             model_slug = result['model'].replace('/', '_')
             model_type = result['model_type']
@@ -1187,6 +1254,8 @@ def main():
             print(f"Controlled Generation (Threshold): {result['accuracy']:.2%} | Failed: {result['failed_extractions']}/{result['total']}")
         elif result.get('model_type') == 'controlled_rank':
             print(f"Controlled Generation (Rank): {result['accuracy']:.2%} | Failed: {result['failed_extractions']}/{result['total']}")
+        elif result.get('model_type') == 'controlled_honest':
+            print(f"Controlled Generation (Honest): {result['accuracy']:.2%} | Failed: {result['failed_extractions']}/{result['total']}")
         else:
             model_name = result['model'].split('/')[-1]
             model_type = result['model_type'].upper()
@@ -1228,6 +1297,19 @@ def main():
                 'untrusted_model': result['untrusted_model'],
                 'trusted_model': result['trusted_model'],
                 'trusted_top_k': result['trusted_top_k'],
+                'accuracy': result['accuracy'],
+                'correct': result['correct'],
+                'total': result['total'],
+                'failed_extractions': result['failed_extractions'],
+                'extraction_success_rate': result['extraction_success_rate'],
+                'total_tokens_generated': result['total_tokens_generated']
+            })
+        elif result.get('model_type') == 'controlled_honest':
+            summary['evaluations'].append({
+                'type': 'controlled_honest',
+                'untrusted_model': result['untrusted_model'],
+                'trusted_model': result['trusted_model'],
+                'trusted_threshold': result['trusted_threshold'],
                 'accuracy': result['accuracy'],
                 'correct': result['correct'],
                 'total': result['total'],

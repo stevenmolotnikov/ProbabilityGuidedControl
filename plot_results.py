@@ -45,6 +45,18 @@ def plot_results(summary_file: str, output_file: str = None):
             top_k = eval_data['trusted_top_k']
             labels.append(f'Controlled (Rank)\nUTM: {untrusted_name}\nTM: {trusted_name}\nk={top_k}, T={display_temp}')
             colors.append('#8e44ad')  # Dark Purple
+        elif eval_data['type'] == 'controlled_honest':
+            untrusted_name = eval_data['untrusted_model'].split('/')[-1]
+            trusted_name = eval_data['trusted_model'].split('/')[-1]
+            threshold = eval_data['trusted_threshold']
+            labels.append(f'Controlled (Honest)\nUTM: {untrusted_name}\nTM: {trusted_name}\nθ={threshold}, T={display_temp}')
+            colors.append('#d35400')  # Orange
+        elif eval_data['type'] == 'controlled_honest_rank':
+            untrusted_name = eval_data['untrusted_model'].split('/')[-1]
+            trusted_name = eval_data['trusted_model'].split('/')[-1]
+            top_k = eval_data['trusted_top_k']
+            labels.append(f'Controlled (Honest Rank)\nUTM: {untrusted_name}\nTM: {trusted_name}\nk={top_k}, T={display_temp}')
+            colors.append('#e67e22')  # Light Orange
         else:
             model_name = eval_data['model'].split('/')[-1]
             model_type = eval_data['model_type']

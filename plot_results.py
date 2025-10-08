@@ -57,6 +57,13 @@ def plot_results(summary_file: str, output_file: str = None):
             top_k = eval_data['trusted_top_k']
             labels.append(f'Controlled (Honest Rank)\nUTM: {untrusted_name}\nTM: {trusted_name}\nk={top_k}, T={display_temp}')
             colors.append('#e67e22')  # Light Orange
+        elif eval_data['type'] == 'controlled_fallback':
+            untrusted_name = eval_data['untrusted_model'].split('/')[-1]
+            trusted_name = eval_data['trusted_model'].split('/')[-1]
+            threshold = eval_data['trusted_threshold']
+            interv_rate = eval_data.get('intervention_rate', 0) * 100
+            labels.append(f'Controlled (Fallback)\nUTM: {untrusted_name}\nTM: {trusted_name}\nθ={threshold}, Interv={interv_rate:.1f}%')
+            colors.append('#f39c12')  # Amber
         else:
             model_name = eval_data['model'].split('/')[-1]
             model_type = eval_data['model_type']
